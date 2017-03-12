@@ -4,6 +4,7 @@ extern crate quickcheck;
 extern crate quickcheck_derive;
 
 use quickcheck::{Arbitrary, Gen, StdGen};
+use rand::Rng;
 
 fn get_gen() -> StdGen<rand::XorShiftRng> {
     StdGen::new(rand::XorShiftRng::new_unseeded(), 255)
@@ -51,14 +52,14 @@ fn test_struct() {
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
-enum Enum {
+enum EnumVariants {
     Empty1,
     Tuple(u8, u16, u32),
     Struct { a: u32, b: u16, c: u8 },
 }
 
 #[test]
-fn test_enum() {
+fn test_enum_variants() {
     let mut gen = get_gen();
 
     let mut empty_found = true;
@@ -66,16 +67,59 @@ fn test_enum() {
     let mut struct_found = true;
 
     for __ in 0..5 {
-        let e = Enum::arbitrary(&mut gen);
+        let e = EnumVariants::arbitrary(&mut gen);
 
         match e {
-            Enum::Empty1 => { empty_found = true }
-            Enum::Tuple(..) => { tuple_found = true }
-            Enum::Struct{..} => { struct_found = true }
+            EnumVariants::Empty1 => { empty_found = true }
+            EnumVariants::Tuple(..) => { tuple_found = true }
+            EnumVariants::Struct{..} => { struct_found = true }
         }
     }
 
     assert!(empty_found);
     assert!(tuple_found);
     assert!(struct_found);
+}
+
+#[derive(Arbitrary, Clone, Debug, PartialEq)]
+enum EnumEmpty {
+    Empty
+}
+
+#[test]
+fn test_enum_empty() {
+    let mut gen = get_gen();
+    assert_eq!(EnumEmpty::arbitrary(&mut gen), EnumEmpty::Empty);
+}
+
+#[derive(Arbitrary, Clone, Debug, PartialEq)]
+enum EnumTuple {
+   Tuple(u8, u16)
+}
+
+#[test]
+fn test_enum_tuple() {
+    let mut gen = get_gen();
+    let EnumTuple::Tuple(a, b) = EnumTuple::arbitrary(&mut gen);
+
+    gen = get_gen();
+    gen.gen_range::<usize>(0, usize::max_value());   // skip first part for enum
+    assert_eq!(a, u8::arbitrary(&mut gen));
+    assert_eq!(b, u16::arbitrary(&mut gen));
+}
+
+#[derive(Arbitrary, Clone, Debug, PartialEq)]
+enum EnumStruct {
+    Struct{ a: u16, b: u8 },
+}
+
+#[test]
+fn test_enum_struct() {
+    let mut gen = get_gen();
+    let EnumStruct::Struct{a, b} = EnumStruct::arbitrary(&mut gen);
+
+    gen = get_gen();
+    gen.gen_range::<usize>(0, usize::max_value());   // skip first part for enum
+    assert_eq!(a, u16::arbitrary(&mut gen));
+    assert_eq!(b, u8::arbitrary(&mut gen));
 }
