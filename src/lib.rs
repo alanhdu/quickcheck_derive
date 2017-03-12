@@ -35,8 +35,7 @@ pub fn impl_arbitrary(input: TokenStream) -> TokenStream {
     output.parse().unwrap()
 }
 
-fn arbitrary(ast: &syn::DeriveInput, gen: &syn::Ident) -> quote::Tokens
-{
+fn arbitrary(ast: &syn::DeriveInput, gen: &syn::Ident) -> quote::Tokens {
     let ty = &ast.ident;
 
     match ast.body {
@@ -103,8 +102,7 @@ fn shrink(ast: &syn::DeriveInput) -> quote::Tokens {
 }
 
 fn shrink_enum_variant(ty: &syn::Ident, variant: &syn::Variant)
-    -> quote::Tokens
-{
+                       -> quote::Tokens {
     let unqualified_ident = &variant.ident;
     let ident = quote! { #ty::#unqualified_ident };
 
@@ -162,8 +160,7 @@ fn shrink_enum_variant(ty: &syn::Ident, variant: &syn::Variant)
 }
 
 fn shrink_struct_variant(ty: &syn::Ident, data: &syn::VariantData)
-    -> quote::Tokens
-{
+                         -> quote::Tokens {
     match *data {
         syn::VariantData::Struct(ref fields) => {
             if fields.len() == 1 {
@@ -192,7 +189,7 @@ fn shrink_struct_variant(ty: &syn::Ident, data: &syn::VariantData)
         },
         syn::VariantData::Tuple(ref fields) => {
             if fields.len() == 1 {
-                return quote! { Box::new(self.0.shrink().map(#ty)) }
+                return quote! { Box::new(self.0.shrink().map(#ty)) };
             }
 
             let mut tuple = Vec::with_capacity(fields.len());

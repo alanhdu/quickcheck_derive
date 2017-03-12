@@ -93,9 +93,9 @@ fn enum_variants() {
         let e = EnumVariants::arbitrary(&mut gen);
 
         match e {
-            EnumVariants::Empty1 => { empty_found = true }
-            EnumVariants::Tuple(..) => { tuple_found = true }
-            EnumVariants::Struct{..} => { struct_found = true }
+            EnumVariants::Empty1 => empty_found = true,
+            EnumVariants::Tuple(..) => tuple_found = true,
+            EnumVariants::Struct{..} => struct_found = true,
         }
     }
 
@@ -117,16 +117,12 @@ fn enum_empty_arbitrary() {
 
 #[test]
 fn enum_empty_shrink() {
-    assert!(
-        EnumEmpty::Empty.shrink()
-            .collect::<Vec<_>>()
-            .is_empty()
-    );
+    assert_eq!(EnumEmpty::Empty.shrink().next(), None);
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
 enum EnumTuple {
-   Tuple(u8, u16)
+    Tuple(u8, u16)
 }
 
 #[test]
