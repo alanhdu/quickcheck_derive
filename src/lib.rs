@@ -7,20 +7,34 @@ extern crate syn;
 use proc_macro::TokenStream;
 
 #[proc_macro_derive(Arbitrary)]
-pub fn arbitrary(input: TokenStream) -> TokenStream {
+pub fn impl_arbitrary(input: TokenStream) -> TokenStream {
     let source = input.to_string();
     let ast = syn::parse_derive_input(&source).unwrap();
 
-    impl_arbitrary(&ast).parse().unwrap()
-}
-
-fn impl_arbitrary(ast: &syn::DeriveInput) -> quote::Tokens {
-    let n = &ast.ident;
-    let name = quote! { #n };
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let gen = syn::Ident::new("g");
-    let body = match ast.body {
+    let arbitrary_body = arbitrary(&ast, &gen);
+
+    let name = &ast.ident;
+    let output = quote! {
+        impl #impl_generics Arbitrary for #name #ty_generics #where_clause {
+            #[allow(unused_variables)]
+            fn arbitrary<G: Gen>(#gen: &mut G) -> Self {
+                #arbitrary_body
+            }
+        }
+    };
+
+    output.parse().unwrap()
+}
+
+fn arbitrary(ast: &syn::DeriveInput, gen: &syn::Ident) -> quote::Tokens
+{
+    let n = &ast.ident;
+    let name = quote! { #n };
+
+    match ast.body {
         syn::Body::Enum(ref variants) => {
             let len = variants.len();
             let mut cases = variants.iter()
@@ -28,7 +42,7 @@ fn impl_arbitrary(ast: &syn::DeriveInput) -> quote::Tokens {
                 .map(|(i, variant)| {
                     let unqualified_ident = &variant.ident;
                     let ident = quote! { #name::#unqualified_ident };
-                    let body = impl_arbitrary_variant(&ident, &gen, &variant.data);
+                    let body = arbitrary_variant(&ident, &gen, &variant.data);
                     quote! { #i => #body }
                 }).collect::<Vec<_>>();
             cases.push(quote! { _ => unreachable!() });
@@ -40,21 +54,12 @@ fn impl_arbitrary(ast: &syn::DeriveInput) -> quote::Tokens {
                 }
             }
         },
-        syn::Body::Struct(ref data) => impl_arbitrary_variant(&name, &gen, data),
-    };
-
-    quote! {
-        impl #impl_generics Arbitrary for #name #ty_generics #where_clause {
-            #[allow(unused_variables)]
-            fn arbitrary<G: Gen>(#gen: &mut G) -> Self {
-                #body
-            }
-        }
+        syn::Body::Struct(ref data) => arbitrary_variant(&name, &gen, data),
     }
 }
 
-fn impl_arbitrary_variant(ident: &quote::Tokens, gen: &syn::Ident,
-                          data: &syn::VariantData) -> quote::Tokens {
+fn arbitrary_variant(ident: &quote::Tokens, gen: &syn::Ident,
+                     data: &syn::VariantData) -> quote::Tokens {
     match *data {
         syn::VariantData::Struct(ref fields) => {
             let f = fields.iter()
