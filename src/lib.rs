@@ -37,17 +37,16 @@ pub fn impl_arbitrary(input: TokenStream) -> TokenStream {
 
 fn arbitrary(ast: &syn::DeriveInput, gen: &syn::Ident) -> quote::Tokens
 {
-    let n = &ast.ident;
-    let name = quote! { #n };
+    let ty = &ast.ident;
 
     match ast.body {
         syn::Body::Enum(ref variants) => {
             let len = variants.len();
-            let mut cases = variants.iter()
-                .enumerate()
+            let mut cases = variants.iter().enumerate()
                 .map(|(i, variant)| {
-                    let unqualified_ident = &variant.ident;
-                    let ident = quote! { #name::#unqualified_ident };
+                    let ident = syn::Ident::new(ty.to_string() +
+                                                "::" +
+                                                &variant.ident.to_string());
                     let body = arbitrary_variant(&ident, &gen, &variant.data);
                     quote! { #i => #body }
                 }).collect::<Vec<_>>();
@@ -60,11 +59,11 @@ fn arbitrary(ast: &syn::DeriveInput, gen: &syn::Ident) -> quote::Tokens
                 }
             }
         },
-        syn::Body::Struct(ref data) => arbitrary_variant(&name, &gen, data),
+        syn::Body::Struct(ref data) => arbitrary_variant(&ty, &gen, data),
     }
 }
 
-fn arbitrary_variant(ident: &quote::Tokens, gen: &syn::Ident,
+fn arbitrary_variant(ident: &syn::Ident, gen: &syn::Ident,
                      data: &syn::VariantData) -> quote::Tokens {
     match *data {
         syn::VariantData::Struct(ref fields) => {
@@ -74,8 +73,7 @@ fn arbitrary_variant(ident: &quote::Tokens, gen: &syn::Ident,
                         let ty = &field.ty;
                         quote! { #ident: #ty::arbitrary(#gen) }
                     })
-                })
-            .collect::<Vec<_>>();
+                }).collect::<Vec<_>>();
             quote! { #ident { #(#f),* } }
         },
         syn::VariantData::Tuple(ref fields) => {
@@ -83,13 +81,10 @@ fn arbitrary_variant(ident: &quote::Tokens, gen: &syn::Ident,
                 .map(|field| {
                     let ty = &field.ty;
                     quote! { #ty::arbitrary(#gen) }
-                })
-            .collect::<Vec<_>>();
+                }).collect::<Vec<_>>();
             quote! { #ident ( #(#f),* ) }
         },
-        syn::VariantData::Unit => quote! {
-            #ident
-        },
+        syn::VariantData::Unit => quote! { #ident },
     }
 }
 
@@ -137,9 +132,10 @@ fn shrink_enum_variant(ty: &syn::Ident, variant: &syn::Variant)
             let mut parts = Vec::with_capacity(fields.len());
 
             for field in fields {
-                let ident = field.ident.as_ref().unwrap();
-                names.push(ident);
-                parts.push(quote! { #ident: #ident });
+                if let Some(ident) = field.ident.as_ref() {
+                    names.push(ident);
+                    parts.push(quote! { #ident: #ident });
+                }
             }
             let tuple = quote!{ #(#names),* };
             let destructure = quote! { #ident { #(#parts),* } };
