@@ -113,21 +113,33 @@ fn shrink_enum_variant(ty: &syn::Ident, variant: &syn::Variant)
             #ident => quickcheck::empty_shrinker()
         },
         syn::VariantData::Tuple(ref fields) => {
+            if fields.len() == 1 {
+                return quote!{
+                    #ident(ref x) => Box::new(x.shrink().map(#ident))
+                };
+            }
+
             let names = (0..fields.len())
                 .map(|i| syn::Ident::new(format!("x{}", i)))
                 .collect::<Vec<_>>();
-            let destructure = quote!{ #(#names),* };
+            let tuple = quote!{ #(#names),* };
 
             quote!{
-                #ident(#destructure) => {
-                    Box::new(
-                        (#destructure).shrink()
-                            .map(|(#destructure)| #ident(#destructure))
-                    )
+                #ident(#tuple) => {
+                    Box::new((#tuple).shrink().map(|(#tuple)| #ident(#tuple)))
                 }
             }
         }
         syn::VariantData::Struct(ref fields) => {
+            if fields.len() == 1 {
+                let field = &fields[0].ident;
+                return quote!{
+                    #ident{ref #field} => Box::new(
+                        #field.shrink().map(|#field| #ident{#field: #field})
+                    )
+                };
+            }
+
             let mut names = Vec::with_capacity(fields.len());
             let mut parts = Vec::with_capacity(fields.len());
 
@@ -142,9 +154,7 @@ fn shrink_enum_variant(ty: &syn::Ident, variant: &syn::Variant)
 
             quote! {
                 #ident{ #tuple } => {
-                    Box::new(
-                        (#tuple).shrink().map(|(#tuple)| #destructure)
-                    )
+                    Box::new((#tuple).shrink().map(|(#tuple)| #destructure))
                 }
             }
         }
@@ -156,6 +166,14 @@ fn shrink_struct_variant(ty: &syn::Ident, data: &syn::VariantData)
 {
     match *data {
         syn::VariantData::Struct(ref fields) => {
+            if fields.len() == 1 {
+                let ident = &fields[0].ident;
+
+                return quote! {Box::new(
+                    self.#ident.shrink().map(|#ident| #ty { #ident: #ident })
+                )};
+            }
+
             let mut names = Vec::with_capacity(fields.len());
             let mut parts = Vec::with_capacity(fields.len());
             let mut tuple = Vec::with_capacity(fields.len());
@@ -167,14 +185,16 @@ fn shrink_struct_variant(ty: &syn::Ident, data: &syn::VariantData)
                 tuple.push(quote! { self.#ident });
             }
 
-            quote! {
-                Box::new(
-                    ( #(#tuple),* ).shrink()
-                        .map(|( #(#names),* )| #ty { #(#parts),* })
-                )
-            }
+            quote! {Box::new(
+                ( #(#tuple),* ).shrink()
+                    .map(|( #(#names),* )| #ty { #(#parts),* })
+            )}
         },
         syn::VariantData::Tuple(ref fields) => {
+            if fields.len() == 1 {
+                return quote! { Box::new(self.0.shrink().map(#ty)) }
+            }
+
             let mut tuple = Vec::with_capacity(fields.len());
             let mut names = Vec::with_capacity(fields.len());
 
@@ -186,12 +206,9 @@ fn shrink_struct_variant(ty: &syn::Ident, data: &syn::VariantData)
             }
 
             let destructure = quote!{ #(#names),* };
-            quote! {
-                Box::new(
-                    ( #(#tuple),* ).shrink()
-                        .map(|(#destructure)| #ty (#destructure))
-                )
-            }
+            quote! {Box::new(
+                ( #(#tuple),* ).shrink().map(|(#destructure)| #ty (#destructure))
+            )}
         },
         syn::VariantData::Unit => quote! { quickcheck::empty_shrinker() },
     }

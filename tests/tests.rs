@@ -177,3 +177,18 @@ quickcheck! {
         xs == ys
     }
 }
+
+// Just check for successful compilation
+#[derive(Arbitrary, Clone, Debug, PartialEq)]
+struct GenericStruct<T: Arbitrary> {
+    data: T,
+}
+
+#[derive(Arbitrary, Clone, Debug, PartialEq)]
+struct GenericTuple<T: Arbitrary>(T);
+
+#[derive(Arbitrary, Clone, Debug, PartialEq)]
+enum GenericEnum<T: Arbitrary> {
+    Struct{data: T},
+    Tuple(T),
+}
