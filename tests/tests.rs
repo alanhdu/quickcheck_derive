@@ -177,14 +177,14 @@ quickcheck! {
 // Just check for successful compilation
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
 struct GenericStruct<T: Arbitrary> {
-    data: T,
+    data: Vec<T>,
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
-struct GenericTuple<T: Arbitrary>(T);
+struct GenericTuple<T: Arbitrary>(Vec<Vec<T>>);
 
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
 enum GenericEnum<T: Arbitrary> {
     Struct{data: T},
-    Tuple(T),
+    Tuple(Vec<T>),
 }

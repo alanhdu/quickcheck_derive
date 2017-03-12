@@ -69,7 +69,7 @@ fn arbitrary_variant(ident: &syn::Ident, gen: &syn::Ident,
             let f = fields.iter()
                 .filter_map(|field| {
                     field.ident.as_ref().map(|ident| {
-                        let ty = &field.ty;
+                        let ty = type_associated_func(&field.ty);
                         quote! { #ident: #ty::arbitrary(#gen) }
                     })
                 }).collect::<Vec<_>>();
@@ -78,13 +78,32 @@ fn arbitrary_variant(ident: &syn::Ident, gen: &syn::Ident,
         syn::VariantData::Tuple(ref fields) => {
             let f = fields.iter()
                 .map(|field| {
-                    let ty = &field.ty;
+                    let ty = type_associated_func(&field.ty);
                     quote! { #ty::arbitrary(#gen) }
                 }).collect::<Vec<_>>();
             quote! { #ident ( #(#f),* ) }
         },
         syn::VariantData::Unit => quote! { #ident },
     }
+}
+
+/// Transform types with a generic paramter `A<B>` into the token sequence
+/// `A::<B>` in order to call associated functions.
+fn type_associated_func(ty: &syn::Ty) -> quote::Tokens {
+    let q = quote!(#ty).to_string();
+    let mut output = quote::Tokens::new();
+
+    match q.find('<') {
+        Some(pos) => {
+            let (a, b) = q.split_at(pos);
+            output.append(a);
+            output.append("::");
+            output.append(b);
+        },
+        None => output.append(&q)
+    }
+
+    output
 }
 
 
