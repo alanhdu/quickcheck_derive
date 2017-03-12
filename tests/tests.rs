@@ -23,7 +23,7 @@ fn test_empty() {
 struct Tuple(u8, u16, u32);
 
 #[test]
-fn test_tuple() {
+fn test_tuple_arbitrary() {
     let mut gen = get_gen();
     let Tuple(a, b, c) = Tuple::arbitrary(&mut gen);
 
@@ -31,6 +31,16 @@ fn test_tuple() {
     assert_eq!(a, u8::arbitrary(&mut gen));
     assert_eq!(b, u16::arbitrary(&mut gen));
     assert_eq!(c, u32::arbitrary(&mut gen));
+}
+
+#[test]
+fn test_tuple_shrink() {
+    let xs = Tuple(5, 13, 17).shrink()
+        .map(|Tuple(a, b, c)| (a, b, c))
+        .collect::<Vec<_>>();
+    let ys = (5u8, 13u16, 17u32).shrink().collect::<Vec<_>>();
+
+    assert_eq!(xs, ys);
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
@@ -41,7 +51,7 @@ struct Struct {
 }
 
 #[test]
-fn test_struct() {
+fn test_struct_arbitrary() {
     let mut gen = get_gen();
     let Struct {a, b, c} = Struct::arbitrary(&mut gen);
 
@@ -49,6 +59,16 @@ fn test_struct() {
     assert_eq!(a, u8::arbitrary(&mut gen));
     assert_eq!(b, u16::arbitrary(&mut gen));
     assert_eq!(c, u32::arbitrary(&mut gen));
+}
+
+#[test]
+fn test_struct_shrink() {
+    let xs = Struct{a: 6, b: 28, c: 496}.shrink()
+        .map(|Struct{a, b, c}| (a, b, c))
+        .collect::<Vec<_>>();
+    let ys = (6u8, 28u16, 496u32).shrink().collect::<Vec<_>>();
+
+    assert_eq!(xs, ys);
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
@@ -87,9 +107,18 @@ enum EnumEmpty {
 }
 
 #[test]
-fn test_enum_empty() {
+fn test_enum_empty_arbitrary() {
     let mut gen = get_gen();
     assert_eq!(EnumEmpty::arbitrary(&mut gen), EnumEmpty::Empty);
+}
+
+#[test]
+fn test_enum_empty_shrink() {
+    assert!(
+        EnumEmpty::Empty.shrink()
+            .collect::<Vec<_>>()
+            .is_empty()
+    );
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
@@ -98,7 +127,7 @@ enum EnumTuple {
 }
 
 #[test]
-fn test_enum_tuple() {
+fn test_enum_tuple_arbitrary() {
     let mut gen = get_gen();
     let EnumTuple::Tuple(a, b) = EnumTuple::arbitrary(&mut gen);
 
@@ -108,13 +137,23 @@ fn test_enum_tuple() {
     assert_eq!(b, u16::arbitrary(&mut gen));
 }
 
+#[test]
+fn test_enum_tuple_shrink() {
+    let xs = EnumTuple::Tuple(254u8, 96u16).shrink()
+        .map(|EnumTuple::Tuple(a, b)| (a, b))
+        .collect::<Vec<_>>();
+    let ys = (254u8, 96u16).shrink().collect::<Vec<_>>();
+
+    assert_eq!(xs, ys);
+}
+
 #[derive(Arbitrary, Clone, Debug, PartialEq)]
 enum EnumStruct {
     Struct{ a: u16, b: u8 },
 }
 
 #[test]
-fn test_enum_struct() {
+fn test_enum_struct_arbitrary() {
     let mut gen = get_gen();
     let EnumStruct::Struct{a, b} = EnumStruct::arbitrary(&mut gen);
 
@@ -122,4 +161,14 @@ fn test_enum_struct() {
     gen.gen_range::<usize>(0, usize::max_value());   // skip first part for enum
     assert_eq!(a, u16::arbitrary(&mut gen));
     assert_eq!(b, u8::arbitrary(&mut gen));
+}
+
+#[test]
+fn test_enum_struct_shrink() {
+    let xs = EnumStruct::Struct {a: 255u16, b: 92u8}.shrink()
+        .map(|EnumStruct::Struct{a, b}| (a, b))
+        .collect::<Vec<_>>();
+    let ys = (255u16, 92u8).shrink().collect::<Vec<_>>();
+
+    assert_eq!(xs, ys);
 }

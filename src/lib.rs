@@ -1,4 +1,5 @@
 extern crate proc_macro;
+
 extern crate quickcheck;
 #[macro_use]
 extern crate quote;
@@ -15,6 +16,7 @@ pub fn impl_arbitrary(input: TokenStream) -> TokenStream {
 
     let gen = syn::Ident::new("g");
     let arbitrary_body = arbitrary(&ast, &gen);
+    let shrink_body = shrink(&ast);
 
     let name = &ast.ident;
     let output = quote! {
@@ -22,6 +24,10 @@ pub fn impl_arbitrary(input: TokenStream) -> TokenStream {
             #[allow(unused_variables)]
             fn arbitrary<G: Gen>(#gen: &mut G) -> Self {
                 #arbitrary_body
+            }
+
+            fn shrink(&self) -> Box<Iterator<Item=Self>> {
+                #shrink_body
             }
         }
     };
@@ -84,5 +90,113 @@ fn arbitrary_variant(ident: &quote::Tokens, gen: &syn::Ident,
         syn::VariantData::Unit => quote! {
             #ident
         },
+    }
+}
+
+
+fn shrink(ast: &syn::DeriveInput) -> quote::Tokens {
+    let name = &ast.ident;
+    match ast.body {
+        syn::Body::Struct(ref data) => shrink_struct_variant(name, data),
+        syn::Body::Enum(ref variants) => {
+            let cases = variants.iter()
+                .map(|variant| shrink_enum_variant(name, variant))
+                .collect::<Vec<_>>();
+            quote! { match *self { #(#cases),* } }
+        }
+    }
+}
+
+fn shrink_enum_variant(ty: &syn::Ident, variant: &syn::Variant)
+    -> quote::Tokens
+{
+    let unqualified_ident = &variant.ident;
+    let ident = quote! { #ty::#unqualified_ident };
+
+    match variant.data {
+        syn::VariantData::Unit => quote! {
+            #ident => quickcheck::empty_shrinker()
+        },
+        syn::VariantData::Tuple(ref fields) => {
+            let names = (0..fields.len())
+                .map(|i| syn::Ident::new(format!("x{}", i)))
+                .collect::<Vec<_>>();
+            let destructure = quote!{ #(#names),* };
+
+            quote!{
+                #ident(#destructure) => {
+                    Box::new(
+                        (#destructure).shrink()
+                            .map(|(#destructure)| #ident(#destructure))
+                    )
+                }
+            }
+        }
+        syn::VariantData::Struct(ref fields) => {
+            let mut names = Vec::with_capacity(fields.len());
+            let mut parts = Vec::with_capacity(fields.len());
+
+            for field in fields {
+                let ident = field.ident.as_ref().unwrap();
+                names.push(ident);
+                parts.push(quote! { #ident: #ident });
+            }
+            let tuple = quote!{ #(#names),* };
+            let destructure = quote! { #ident { #(#parts),* } };
+
+            quote! {
+                #ident{ #tuple } => {
+                    Box::new(
+                        (#tuple).shrink().map(|(#tuple)| #destructure)
+                    )
+                }
+            }
+        }
+    }
+}
+
+fn shrink_struct_variant(ty: &syn::Ident, data: &syn::VariantData)
+    -> quote::Tokens
+{
+    match *data {
+        syn::VariantData::Struct(ref fields) => {
+            let mut names = Vec::with_capacity(fields.len());
+            let mut parts = Vec::with_capacity(fields.len());
+            let mut tuple = Vec::with_capacity(fields.len());
+
+            for field in fields {
+                let ident = &field.ident;
+                names.push(quote! { #ident });
+                parts.push(quote! { #ident: #ident });
+                tuple.push(quote! { self.#ident });
+            }
+
+            quote! {
+                Box::new(
+                    ( #(#tuple),* ).shrink()
+                        .map(|( #(#names),* )| #ty { #(#parts),* })
+                )
+            }
+        },
+        syn::VariantData::Tuple(ref fields) => {
+            let mut tuple = Vec::with_capacity(fields.len());
+            let mut names = Vec::with_capacity(fields.len());
+
+            for i in 0..fields.len() {
+                let index = syn::Ident::new(i);
+
+                tuple.push(quote!{ self.#index });
+                names.push(syn::Ident::new(format!("x{}", i)));
+            }
+
+            let destructure = quote!{ #(#names),* };
+            quote! {
+                Box::new(
+                    ( #(#tuple),* ).shrink()
+                        .map(|(#destructure)| #ty (#destructure))
+                )
+            }
+        },
+        syn::VariantData::Unit => quote! { quickcheck::empty_shrinker() },
     }
 }
